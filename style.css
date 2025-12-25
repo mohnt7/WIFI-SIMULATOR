@@ -37,10 +37,14 @@ body {
     /* RTL border */
     display: flex;
     flex-direction: column;
-    padding: 1.5rem;
-    gap: 2rem;
+    padding: 1rem;
+    /* Reduced from 1.5 */
+    gap: 1rem;
+    /* Reduced from 2 */
     box-shadow: -4px 0 15px rgba(0, 0, 0, 0.3);
     z-index: 10;
+    height: 100%;
+    max-height: 100vh;
     overflow-y: auto;
 }
 
