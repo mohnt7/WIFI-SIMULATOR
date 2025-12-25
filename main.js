@@ -208,7 +208,7 @@ class InputHandler {
             this.state.router = { x: pos.x, y: pos.y };
             this.state.needsUpdate = true;
             this.state.needsCalculation = true;
-            this.isDragging = false; // Router is instant placement
+            this.isDragging = false;
         } else if (this.state.tool === 'delete') {
             this.deleteObjectAt(pos);
             this.state.needsUpdate = true;
@@ -219,7 +219,6 @@ class InputHandler {
                 this.state.extenders.push({ x: pos.x, y: pos.y });
                 this.state.needsUpdate = true;
                 this.state.needsCalculation = true;
-                // Update button text? handled in loop or manually
             } else {
                 alert("الحد الأقصى هو 3 مقويات فقط");
             }
@@ -312,7 +311,6 @@ class InputHandler {
 class Simulation {
     constructor(gridSize = 20) {
         this.gridSize = gridSize;
-        this.walls = [];
         this.walls = [];
         this.router = null;
         this.extenders = [];
