@@ -173,81 +173,104 @@ class Renderer {
                 this.ctx.strokeText(quality, dev.x + 10, dev.y + 12);
                 this.ctx.fillText(quality, dev.x + 10, dev.y + 12);
             }
-        }
         });
-}
+    }
 
-drawSignalRays(devices, simulation) {
-    if (!devices || !simulation) return;
-    // Only if we have a source
-    const sources = [];
-    if (simulation.router) sources.push(simulation.router);
-    simulation.extenders.forEach(e => sources.push(e));
+    drawLabels(labels) {
+        if (!labels) return;
+        this.ctx.font = 'bold 14px Cairo, Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
 
-    if (sources.length === 0) return;
+        labels.forEach(lbl => {
+            const textWidth = this.ctx.measureText(lbl.text).width;
 
-    devices.forEach(dev => {
-        // Find strongest source
-        let bestSource = null;
-        let bestSignal = -Infinity;
-        const freqFactor = 20 * Math.log10(simulation.frequency * 1000) - 27.55;
+            // Background Pill
+            this.ctx.fillStyle = 'rgba(30, 41, 59, 0.8)';
+            this.ctx.beginPath();
+            this.ctx.roundRect(lbl.x - textWidth / 2 - 8, lbl.y - 12, textWidth + 16, 24, 12);
+            this.ctx.fill();
+            this.ctx.strokeStyle = '#94a3b8';
+            this.ctx.lineWidth = 1;
+            this.ctx.stroke();
 
-        sources.forEach(src => {
-            const s = simulation.calculateSignalFromSource(src, dev.x, dev.y, freqFactor);
-            if (s > bestSignal) {
-                bestSignal = s;
-                bestSource = src;
+            // Text
+            this.ctx.fillStyle = '#f8fafc';
+            this.ctx.fillText(lbl.text, lbl.x, lbl.y);
+        });
+    }
+
+    drawSignalRays(devices, simulation) {
+        if (!devices || !simulation) return;
+        // Only if we have a source
+        const sources = [];
+        if (simulation.router) sources.push(simulation.router);
+        simulation.extenders.forEach(e => sources.push(e));
+
+        if (sources.length === 0) return;
+
+        devices.forEach(dev => {
+            // Find strongest source
+            let bestSource = null;
+            let bestSignal = -Infinity;
+            const freqFactor = 20 * Math.log10(simulation.frequency * 1000) - 27.55;
+
+            sources.forEach(src => {
+                const s = simulation.calculateSignalFromSource(src, dev.x, dev.y, freqFactor);
+                if (s > bestSignal) {
+                    bestSignal = s;
+                    bestSource = src;
+                }
+            });
+
+            if (bestSource) {
+                // Trace Path
+                // Draw Direct Line from Source to Device
+                // We will just draw a simple line for now, 
+                // OR do advanced segment coloring (Green -> Red) based on intersections
+                // Let's do a simple gradient line or dashed line
+
+                const grad = this.ctx.createLinearGradient(bestSource.x, bestSource.y, dev.x, dev.y);
+                grad.addColorStop(0, 'rgba(0, 255, 0, 0.5)'); // Source (Green)
+                grad.addColorStop(1, 'rgba(255, 0, 0, 0.5)'); // Device (Red-ish)
+
+                this.ctx.strokeStyle = grad;
+                this.ctx.lineWidth = 2;
+                this.ctx.setLineDash([5, 5]);
+                this.ctx.beginPath();
+                this.ctx.moveTo(bestSource.x, bestSource.y);
+                this.ctx.lineTo(dev.x, dev.y);
+                this.ctx.stroke();
+                this.ctx.setLineDash([]);
             }
         });
+    }
 
-        if (bestSource) {
-            // Trace Path
-            // Draw Direct Line from Source to Device
-            // We will just draw a simple line for now, 
-            // OR do advanced segment coloring (Green -> Red) based on intersections
-            // Let's do a simple gradient line or dashed line
+    drawHeatmap(heatmapData) {
+        if (!heatmapData) return;
 
-            const grad = this.ctx.createLinearGradient(bestSource.x, bestSource.y, dev.x, dev.y);
-            grad.addColorStop(0, 'rgba(0, 255, 0, 0.5)'); // Source (Green)
-            grad.addColorStop(1, 'rgba(255, 0, 0, 0.5)'); // Device (Red-ish)
+        const cellW = this.gridSize; // Match simulation grid
+        const cellH = this.gridSize;
 
-            this.ctx.strokeStyle = grad;
-            this.ctx.lineWidth = 2;
-            this.ctx.setLineDash([5, 5]);
-            this.ctx.beginPath();
-            this.ctx.moveTo(bestSource.x, bestSource.y);
-            this.ctx.lineTo(dev.x, dev.y);
-            this.ctx.stroke();
-            this.ctx.setLineDash([]);
-        }
-    });
-}
+        heatmapData.forEach(cell => {
+            const color = this.getSignalColor(cell.signal);
+            this.ctx.fillStyle = color;
+            this.ctx.fillRect(cell.x, cell.y, cellW, cellH);
+        });
+    }
 
-drawHeatmap(heatmapData) {
-    if (!heatmapData) return;
+    getSignalColor(signalDbm) {
+        // Map dBm to color
+        // Range: -90 (Weak/Bad) to -30 (Strong/Good)
+        let normalized = (signalDbm + 90) / 60; // 0 to 1
+        normalized = Math.max(0, Math.min(1, normalized));
 
-    const cellW = this.gridSize; // Match simulation grid
-    const cellH = this.gridSize;
-
-    heatmapData.forEach(cell => {
-        const color = this.getSignalColor(cell.signal);
-        this.ctx.fillStyle = color;
-        this.ctx.fillRect(cell.x, cell.y, cellW, cellH);
-    });
-}
-
-getSignalColor(signalDbm) {
-    // Map dBm to color
-    // Range: -90 (Weak/Bad) to -30 (Strong/Good)
-    let normalized = (signalDbm + 90) / 60; // 0 to 1
-    normalized = Math.max(0, Math.min(1, normalized));
-
-    // Color map: Red (0) -> Green (120)
-    // 0 (Bad) -> Red
-    // 1 (Good) -> Green
-    const hue = normalized * 120;
-    return `hsla(${hue}, 100%, 50%, 0.4)`; // 0.4 opacity
-}
+        // Color map: Red (0) -> Green (120)
+        // 0 (Bad) -> Red
+        // 1 (Good) -> Green
+        const hue = normalized * 120;
+        return `hsla(${hue}, 100%, 50%, 0.4)`; // 0.4 opacity
+    }
 }
 
 /* --- INPUT HANDLER --- */
@@ -305,6 +328,13 @@ class InputHandler {
             this.state.devices.push({ x: pos.x, y: pos.y });
             this.state.needsUpdate = true;
             this.isDragging = false;
+        } else if (this.state.tool === 'label') {
+            const text = prompt("أدخل اسم الغرفة/المنطقة:", "غرفة المعيشة");
+            if (text) {
+                this.state.labels.push({ x: pos.x, y: pos.y, text: text });
+                this.state.needsUpdate = true;
+            }
+            this.isDragging = false;
         }
     }
 
@@ -315,6 +345,13 @@ class InputHandler {
         if (this.state.tool === 'wall') {
             this.state.previewWall = {
                 start: this.startPoint,
+                end: this.currentPoint
+            };
+            this.state.needsUpdate = true;
+        } else if (this.state.tool === 'calibrate_drawing') {
+            // Preview calibration line
+            this.state.previewLine = {
+                start: this.state.calibrationPoints[0],
                 end: this.currentPoint
             };
             this.state.needsUpdate = true;
@@ -333,73 +370,118 @@ class InputHandler {
             this.state.previewWall = null;
             this.state.needsUpdate = true;
             this.state.needsCalculation = true;
+        } else if (this.state.tool === 'calibrate_drawing') {
+            this.handleCalibrationEnd(this.currentPoint);
         }
 
         this.isDragging = false;
         this.startPoint = null;
-    } else if(this.state.tool === 'calibrate_drawing') {
-    this.handleCalibrationEnd(this.currentPoint);
-}
-
-this.isDragging = false;
-this.startPoint = null;
-this.currentPoint = null;
+        this.currentPoint = null;
     }
 
-cancelDrag() {
-    if (this.isDragging) {
-        this.isDragging = false;
-        this.state.previewWall = null;
-        this.state.needsUpdate = true;
-    }
-}
-
-deleteObjectAt(pos) {
-    const threshold = 20;
-
-    // Remove router if clicked
-    if (this.state.router) {
-        const dx = this.state.router.x - pos.x;
-        const dy = this.state.router.y - pos.y;
-        if (dx * dx + dy * dy < 400) { // 20px radius
-            this.state.router = null;
-            return;
+    cancelDrag() {
+        if (this.isDragging) {
+            this.isDragging = false;
+            this.state.previewWall = null;
+            this.state.needsUpdate = true;
         }
     }
 
-    // Remove walls
-    this.state.walls = this.state.walls.filter(wall => {
-        return !this.isPointNearLine(pos, wall.start, wall.end, threshold);
-    });
+    deleteObjectAt(pos) {
+        const threshold = 20;
 
-    // Remove extenders
-    this.state.extenders = this.state.extenders.filter(ext => {
-        const dx = ext.x - pos.x;
-        const dy = ext.y - pos.y;
-        return (dx * dx + dy * dy >= 400);
-    });
+        // Remove router if clicked
+        if (this.state.router) {
+            const dx = this.state.router.x - pos.x;
+            const dy = this.state.router.y - pos.y;
+            if (dx * dx + dy * dy < 400) { // 20px radius
+                this.state.router = null;
+                return;
+            }
+        }
 
-    // Remove devices
-    this.state.devices = this.state.devices.filter(dev => {
-        const dx = dev.x - pos.x;
-        const dy = dev.y - pos.y;
-        return (dx * dx + dy * dy >= 400);
-    });
-}
+        // Remove walls
+        this.state.walls = this.state.walls.filter(wall => {
+            return !this.isPointNearLine(pos, wall.start, wall.end, threshold);
+        });
 
-isPointNearLine(p, a, b, threshold) {
-    // Distance from point p to line segment ab
-    const l2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
-    if (l2 == 0) return false;
+        // Remove extenders
+        this.state.extenders = this.state.extenders.filter(ext => {
+            const dx = ext.x - pos.x;
+            const dy = ext.y - pos.y;
+            return (dx * dx + dy * dy >= 400);
+        });
 
-    let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l2;
-    t = Math.max(0, Math.min(1, t));
+        // Remove devices
+        this.state.devices = this.state.devices.filter(dev => {
+            const dx = dev.x - pos.x;
+            const dy = dev.y - pos.y;
+            return (dx * dx + dy * dy >= 400);
+        });
 
-    const distSq = (p.x - (a.x + t * (b.x - a.x))) ** 2 +
-        (p.y - (a.y + t * (b.y - a.y))) ** 2;
+        // Remove labels
+        this.state.labels = this.state.labels.filter(lbl => {
+            const dx = lbl.x - pos.x;
+            const dy = lbl.y - pos.y;
+            // Approximate hit box
+            return (Math.abs(dx) > 30 || Math.abs(dy) > 15);
+        });
+    }
 
-    return distSq < threshold * threshold;
-}
+    isPointNearLine(p, a, b, threshold) {
+        // Distance from point p to line segment ab
+        const l2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
+        if (l2 == 0) return false;
+
+        let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l2;
+        t = Math.max(0, Math.min(1, t));
+
+        const distSq = (p.x - (a.x + t * (b.x - a.x))) ** 2 +
+            (p.y - (a.y + t * (b.y - a.y))) ** 2;
+
+        return distSq < threshold * threshold;
+    }
+
+    handleCalibrationEnd(pos) {
+        if (this.state.tool !== 'calibrate_drawing') return;
+
+        const start = this.state.calibrationPoints[0];
+        const end = pos;
+
+        // Calculate pixels
+        const distPx = Math.hypot(end.x - start.x, end.y - start.y);
+
+        if (distPx < 10) {
+            alert("المسافة قصيرة جداً!");
+            this.state.tool = 'calibrate';
+            this.state.previewLine = null;
+            this.state.needsUpdate = true;
+            return;
+        }
+
+        // Prompt user
+        setTimeout(() => {
+            const meters = prompt("كم طول هذا الخط بالأمتار الحقيقية؟", "5");
+            if (meters && !isNaN(meters) && meters > 0) {
+                const newScale = distPx / parseFloat(meters); // Pixels per meter
+                if (confirm(`هل تريد اعتماد المقياس الجديد: 1 متر = ${Math.round(newScale)} بكسل؟`)) {
+                    this.state.scale = newScale;
+                    document.getElementById('scale-display').textContent = `المقياس الحالي: 1m = ${Math.round(newScale)}px`;
+                    this.state.needsCalculation = true; // Recalc physics
+                }
+            }
+            // Reset
+            this.state.tool = 'wall'; // Back to default
+            this.state.previewLine = null;
+            this.state.calibrationPoints = [];
+
+            // Update UI buttons
+            document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('btn-draw-wall').classList.add('active'); // Back to wall
+
+            this.state.needsUpdate = true;
+        }, 10);
+    }
 }
 
 /* --- SIMULATION --- */
@@ -601,6 +683,7 @@ class App {
             router: null, // {x, y}
             extenders: [], // [{x,y}]
             devices: [], // [{x,y}]
+            labels: [], // [{x,y,text}]
             previewWall: null,
             heatmap: null,
             needsUpdate: true,
@@ -627,7 +710,7 @@ class App {
         document.getElementById('btn-place-router').addEventListener('click', (e) => this.setTool('router', e.target));
         document.getElementById('btn-place-extender').addEventListener('click', (e) => this.setTool('extender', e.target));
         document.getElementById('btn-place-device').addEventListener('click', (e) => this.setTool('device', e.target));
-        document.getElementById('btn-place-device').addEventListener('click', (e) => this.setTool('device', e.target));
+        document.getElementById('btn-place-label').addEventListener('click', (e) => this.setTool('label', e.target));
         document.getElementById('btn-delete').addEventListener('click', (e) => this.setTool('delete', e.target));
         document.getElementById('btn-calibrate').addEventListener('click', (e) => this.setTool('calibrate', e.target));
 
@@ -636,6 +719,7 @@ class App {
             this.state.router = null;
             this.state.extenders = [];
             this.state.devices = [];
+            this.state.labels = [];
             this.state.heatmap = null;
             this.state.needsUpdate = true;
             this.state.needsCalculation = true;
@@ -761,6 +845,7 @@ class App {
             this.renderer.drawRouter(this.state.router);
             this.renderer.drawExtenders(this.state.extenders);
             this.renderer.drawDevices(this.state.devices, this.simulation);
+            this.renderer.drawLabels(this.state.labels);
             this.renderer.drawSignalRays(this.state.devices, this.simulation);
 
             // Draw Preview Line (Calibration)
