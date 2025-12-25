@@ -160,6 +160,19 @@ class InputHandler {
             this.state.needsUpdate = true;
             this.state.needsCalculation = true;
             this.isDragging = false;
+        } else if (this.state.tool === 'edit') {
+            // Find wall near click
+            const threshold = 10;
+            const wallIndex = this.state.walls.findIndex(wall => this.isPointNearLine(pos, wall.start, wall.end, threshold));
+            if (wallIndex !== -1) {
+                const newType = prompt('اختر نوع الجدار الجديد (concrete, drywall, glass, wood):', this.state.walls[wallIndex].type);
+                if (newType) {
+                    this.state.walls[wallIndex].type = newType;
+                    this.state.needsUpdate = true;
+                    this.state.needsCalculation = true;
+                }
+            }
+            this.isDragging = false;
         }
     }
 
@@ -362,6 +375,7 @@ class App {
         document.getElementById('btn-draw-wall').addEventListener('click', (e) => this.setTool('wall', e.target));
         document.getElementById('btn-place-router').addEventListener('click', (e) => this.setTool('router', e.target));
         document.getElementById('btn-delete').addEventListener('click', (e) => this.setTool('delete', e.target));
+        document.getElementById('btn-edit').addEventListener('click', (e) => this.setTool('edit', e.target));
 
         document.getElementById('btn-clear-all').addEventListener('click', () => {
             this.state.walls = [];
@@ -399,6 +413,7 @@ class App {
             case 'wall': status.textContent = "اضغط واسحب لرسم جدار"; break;
             case 'router': status.textContent = "اضغط لوضع الراوتر"; break;
             case 'delete': status.textContent = "اضغط على عنصر لحذفه"; break;
+            case 'edit': status.textContent = "اضغط على جدار لتعديله"; break;
         }
     }
 
