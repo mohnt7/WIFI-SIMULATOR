@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>محاكي تغطية الواي فاي</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar Controls -->
+        <aside class="sidebar">
+            <div class="logo">
+                <h1>محاكي الواي فاي</h1>
+                <p>صمم منزلك واختبر التغطية</p>
+            </div>
+
+            <div class="tools">
+                <h3>الأدوات</h3>
+                <button id="btn-draw-wall" class="tool-btn active" title="رسم جدار">
+                    <span class="icon">🧱</span> رسم جدار
+                </button>
+                <div class="sub-tool-options" id="wall-options">
+                    <select id="wall-type">
+                        <option value="concrete">خرسانة (12dB)</option>
+                        <option value="drywall">جبس (4dB)</option>
+                        <option value="glass">زجاج (3dB)</option>
+                        <option value="wood">خشب (2dB)</option>
+                    </select>
+                </div>
+                <button id="btn-place-router" class="tool-btn" title="وضع الراوتر">
+                    <span class="icon">📡</span> وضع الراوتر
+                </button>
+                <button id="btn-delete" class="tool-btn" title="مسح عنصر">
+                    <span class="icon">❌</span> مسح
+                </button>
+            </div>
+
+            <div class="settings">
+                <h3>الإعدادات</h3>
+                <div class="control-group">
+                    <label>قوة البث (dBm)</label>
+                    <input type="range" id="tx-power" min="0" max="30" value="20">
+                    <span id="tx-power-val">20 dBm</span>
+                </div>
+                <div class="control-group">
+                    <label>التردد</label>
+                    <select id="frequency">
+                        <option value="2.4">2.4 GHz</option>
+                        <option value="5">5 GHz</option>
+                    </select>
+                </div>
+                <button id="btn-clear-all" class="action-btn danger">مسح الكل</button>
+            </div>
+
+            <div class="status">
+                <p id="status-text">جاهز للرسم...</p>
+            </div>
+        </aside>
+
+        <!-- Main Canvas Area -->
+        <main class="canvas-container">
+            <canvas id="sim-canvas"></canvas>
+            <div class="overlay-info">
+                <div class="legend">
+                    <span class="bad">قوي</span>
+                    <div class="gradient-bar" style="background: linear-gradient(to right, red, yellow, lime);"></div>
+                    <span class="good">ضعيف</span>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Logic -->
+    <script src="main.js"></script>
+</body>
+
+</html>
