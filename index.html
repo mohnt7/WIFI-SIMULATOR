@@ -39,6 +39,9 @@
                 <button id="btn-place-extender" class="tool-btn" title="إضافة مقوي">
                     <span class="icon">📶</span> إضافة مقوي (0/3)
                 </button>
+                <button id="btn-place-device" class="tool-btn" title="أضف جهاز اختبار">
+                    <span class="icon">📱</span> جهاز اختبار
+                </button>
                 <button id="btn-delete" class="tool-btn" title="حذف عنصر">
                     <span class="icon">❌</span> حذف عنصر
                 </button>
@@ -58,7 +61,19 @@
                         <option value="5">5 GHz</option>
                     </select>
                 </div>
-                <button id="btn-clear-all" class="action-btn danger">تفريغ الصفحة</button>
+                <div class="control-group">
+                    <label>التداخل/الضجيج (dB)</label>
+                    <input type="range" id="interference" min="0" max="20" value="0">
+                    <span id="interference-val">0 dB</span>
+                </div>
+
+                <div class="actions-row">
+                    <button id="btn-auto-optimize" class="action-btn" style="background: #8b5cf6;">🧠 تحسين
+                        تلقائي</button>
+                    <button id="btn-export" class="action-btn" style="background: #10b981;">📷 حفظ صورة</button>
+                </div>
+
+                <button id="btn-clear-all" class="action-btn danger" style="margin-top: 10px;">تفريغ الصفحة</button>
             </div>
 
             <div class="status">

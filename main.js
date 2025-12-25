@@ -145,6 +145,37 @@ class Renderer {
         });
     }
 
+    drawDevices(devices, simulation) {
+        if (!devices) return;
+        devices.forEach(dev => {
+            // Draw Device (Mobile Phone Style)
+            this.ctx.fillStyle = '#8b5cf6';
+            this.ctx.fillRect(dev.x - 6, dev.y - 10, 12, 20);
+            this.ctx.strokeStyle = '#fff';
+            this.ctx.lineWidth = 1;
+            this.ctx.strokeRect(dev.x - 6, dev.y - 10, 12, 20);
+
+            // Signal Info
+            if (simulation && (simulation.router || simulation.extenders.length > 0)) {
+                // Calculate signal at this point on the fly or pass it
+                // For simplicity, we assume simulation object has helper
+                const sig = simulation.calculateSignalAtPoint(dev.x, dev.y);
+                const quality = sig > -60 ? "Excellent 🚀" : (sig > -75 ? "Good 👌" : (sig > -85 ? "Weak ⚠️" : "Dead 💀"));
+
+                this.ctx.fillStyle = '#fff';
+                this.ctx.font = 'bold 12px Arial';
+                this.ctx.strokeStyle = 'black';
+                this.ctx.lineWidth = 3;
+                this.ctx.strokeText(`${Math.round(sig)}dBm`, dev.x + 10, dev.y);
+                this.ctx.fillText(`${Math.round(sig)}dBm`, dev.x + 10, dev.y);
+
+                this.ctx.font = '10px Arial';
+                this.ctx.strokeText(quality, dev.x + 10, dev.y + 12);
+                this.ctx.fillText(quality, dev.x + 10, dev.y + 12);
+            }
+        });
+    }
+
     drawHeatmap(heatmapData) {
         if (!heatmapData) return;
 
@@ -223,6 +254,10 @@ class InputHandler {
                 alert("الحد الأقصى هو 3 مقويات فقط");
             }
             this.isDragging = false;
+        } else if (this.state.tool === 'device') {
+            this.state.devices.push({ x: pos.x, y: pos.y });
+            this.state.needsUpdate = true;
+            this.isDragging = false;
         }
     }
 
@@ -290,6 +325,13 @@ class InputHandler {
             const dy = ext.y - pos.y;
             return (dx * dx + dy * dy >= 400);
         });
+
+        // Remove devices
+        this.state.devices = this.state.devices.filter(dev => {
+            const dx = dev.x - pos.x;
+            const dy = dev.y - pos.y;
+            return (dx * dx + dy * dy >= 400);
+        });
     }
 
     isPointNearLine(p, a, b, threshold) {
@@ -318,10 +360,11 @@ class Simulation {
         this.height = 0;
         this.txPower = 20; // dBm
         this.frequency = 2.4; // GHz
+        this.interference = 0; // dB
         this.wallAttenuation = 12; // dB per wall
     }
 
-    updateConfig(width, height, walls, router, extenders, txPower, freq) {
+    updateConfig(width, height, walls, router, extenders, txPower, freq, interference) {
         this.width = width;
         this.height = height;
         this.walls = walls;
@@ -329,6 +372,7 @@ class Simulation {
         this.extenders = extenders || [];
         this.txPower = parseFloat(txPower);
         this.frequency = parseFloat(freq);
+        this.interference = parseFloat(interference) || 0;
     }
 
     calculateCoverage() {
@@ -358,6 +402,9 @@ class Simulation {
                     if (sE > maxSignal) maxSignal = sE;
                 });
 
+                // Apply Interference
+                maxSignal -= this.interference;
+
                 if (maxSignal < -90) maxSignal = -90;
 
                 points.push({
@@ -368,6 +415,66 @@ class Simulation {
             }
         }
         return points;
+    }
+
+    calculateSignalAtPoint(x, y) {
+        if (!this.router) return -100;
+        const freqFactor = 20 * Math.log10(this.frequency * 1000) - 27.55;
+
+        let maxSignal = this.calculateSignalFromSource(this.router, x, y, freqFactor);
+
+        this.extenders.forEach(ext => {
+            let s = this.calculateSignalFromSource(ext, x, y, freqFactor);
+            if (s > maxSignal) maxSignal = s;
+        });
+
+        maxSignal -= this.interference;
+        return maxSignal;
+    }
+
+    findBestPosition() {
+        if (!this.width || !this.height) return null;
+        // Brute force simplified: Scan grid points every 40px (2x grid size)
+        // Find point with Max Average Signal
+        const step = this.gridSize * 2;
+        let bestScore = -Infinity;
+        let bestPos = null;
+
+        // Valid area check: simple internal points
+        // We will just test points
+        const freqFactor = 20 * Math.log10(this.frequency * 1000) - 27.55;
+
+        for (let x = 20; x < this.width - 20; x += step) {
+            for (let y = 20; y < this.height - 20; y += step) {
+                // Check if inside wall? (Advanced, skip for now, assumed open plan mostly)
+                // Score = Sum of signal at sample points
+                // We'll sample 5 points to be fast: TopLeft, TopRight, BotLeft, BotRight, Center
+
+                // Actually, metric should be "Coverage Area > -75dBm"
+                // Let's do a quick local simulation for this candidate position
+                // This is heavy. Alternatively, maximize distance from all walls? No.
+
+                // Let's maximize "Minimum Distance to any wall" + "Centrality"?
+                // No, use coverage.
+
+                let routerCandidate = { x, y };
+                let goodPixels = 0;
+
+                // Sparse sampling for evaluation
+                for (let sx = 0; sx < this.width; sx += step * 2) {
+                    for (let sy = 0; sy < this.height; sy += step * 2) {
+                        let sig = this.calculateSignalFromSource(routerCandidate, sx, sy, freqFactor);
+                        if (sig > -75) goodPixels++;
+                    }
+                }
+
+                if (goodPixels > bestScore) {
+                    bestScore = goodPixels;
+                    bestPos = { x, y };
+                }
+            }
+        }
+        return bestPos;
     }
 
     calculateSignalFromSource(source, targetX, targetY, freqFactor) {
@@ -432,6 +539,7 @@ class App {
             walls: [], // {start: {x,y}, end: {x,y}, type: string}
             router: null, // {x, y}
             extenders: [], // [{x,y}]
+            devices: [], // [{x,y}]
             previewWall: null,
             heatmap: null,
             needsUpdate: true,
@@ -453,15 +561,47 @@ class App {
         document.getElementById('btn-draw-wall').addEventListener('click', (e) => this.setTool('wall', e.target));
         document.getElementById('btn-place-router').addEventListener('click', (e) => this.setTool('router', e.target));
         document.getElementById('btn-place-extender').addEventListener('click', (e) => this.setTool('extender', e.target));
+        document.getElementById('btn-place-device').addEventListener('click', (e) => this.setTool('device', e.target));
         document.getElementById('btn-delete').addEventListener('click', (e) => this.setTool('delete', e.target));
 
         document.getElementById('btn-clear-all').addEventListener('click', () => {
             this.state.walls = [];
             this.state.router = null;
-            this.state.extenders = []; // Clear extenders
+            this.state.extenders = [];
+            this.state.devices = [];
             this.state.heatmap = null;
             this.state.needsUpdate = true;
             this.state.needsCalculation = true;
+        });
+
+        // 🧠 Auto Optimize
+        document.getElementById('btn-auto-optimize').addEventListener('click', () => {
+            if (!this.state.heatmap) {
+                // Force a calc if needed, but better to just use simulation
+            }
+            const status = document.getElementById('status-text');
+            status.textContent = "جاري البحث عن أفضل مكان... ⏳";
+
+            // Timeout to let UI render text
+            setTimeout(() => {
+                const best = this.simulation.findBestPosition();
+                if (best) {
+                    this.state.router = best;
+                    this.state.needsCalculation = true;
+                    this.state.needsUpdate = true;
+                    status.textContent = "تم العثور على المكان المثالي! 🎯";
+                } else {
+                    status.textContent = "لم يتم العثور على مكان مناسب";
+                }
+            }, 100);
+        });
+
+        // 📷 Export
+        document.getElementById('btn-export').addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = 'wifi-coverage-plan.png';
+            link.href = this.canvas.toDataURL('image/png');
+            link.click();
         });
 
         // Settings
@@ -492,6 +632,7 @@ class App {
             case 'wall': status.textContent = "اضغط واسحب لرسم جدار"; break;
             case 'router': status.textContent = "اضغط لوضع الراوتر"; break;
             case 'extender': status.textContent = "اضغط لوضع مقوي (الحد 3)"; break;
+            case 'device': status.textContent = "اضغط لوضع جهاز ومعرفة جودة الإشارة"; break;
             case 'delete': status.textContent = "اضغط على عنصر لحذفه"; break;
         }
     }
@@ -507,6 +648,7 @@ class App {
             // Signal Calculation
             const txPower = document.getElementById('tx-power').value;
             const freq = document.getElementById('frequency').value;
+            const interference = document.getElementById('interference').value;
 
             this.simulation.updateConfig(
                 this.canvas.width,
@@ -515,7 +657,8 @@ class App {
                 this.state.router,
                 this.state.extenders,
                 txPower,
-                freq
+                freq,
+                interference
             );
 
             if (this.state.router) {
@@ -544,9 +687,10 @@ class App {
             // Draw Preview Wall
             this.renderer.drawPreviewWall(this.state.previewWall);
 
-            // Draw Router & Extenders
+            // Draw Router & Extenders & Devices
             this.renderer.drawRouter(this.state.router);
             this.renderer.drawExtenders(this.state.extenders);
+            this.renderer.drawDevices(this.state.devices, this.simulation);
 
             this.state.needsUpdate = false;
         }
