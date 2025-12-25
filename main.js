@@ -52,18 +52,18 @@ class Renderer {
     }
 
     drawWalls(walls) {
-        this.ctx.lineWidth = 4;
         this.ctx.lineCap = 'round';
 
         const wallColors = {
-            'concrete': '#334155', // Dark slate
-            'drywall': '#94a3b8',  // Light slate
-            'glass': '#60a5fa',    // Blueish
-            'wood': '#a16207'      // Brown
+            'concrete': '#1a202c', // Dark Gray (Very dark)
+            'drywall': '#ffffff',  // White
+            'glass': '#38bdf8',    // Light Blue (Sky)
+            'wood': '#8B4513'      // Real Wood Brown (SaddleBrown)
         };
 
         walls.forEach(wall => {
             this.ctx.beginPath();
+            this.ctx.lineWidth = wall.type === 'concrete' ? 6 : 4; // Bold for concrete
             this.ctx.strokeStyle = wallColors[wall.type] || '#94a3b8';
             this.ctx.moveTo(wall.start.x, wall.start.y);
             this.ctx.lineTo(wall.end.x, wall.end.y);
@@ -75,8 +75,8 @@ class Renderer {
             const midX = (wall.start.x + wall.end.x) / 2;
             const midY = (wall.start.y + wall.end.y) / 2;
 
-            this.ctx.fillStyle = '#cbd5e1';
-            this.ctx.font = '10px Arial';
+            this.ctx.fillStyle = '#cbd5e1'; // Text color
+            this.ctx.font = 'bold 12px Arial';
             this.ctx.fillText(`${distM}m`, midX + 5, midY - 5);
         });
     }
