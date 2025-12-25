@@ -153,10 +153,12 @@ class InputHandler {
         if (this.state.tool === 'router') {
             this.state.router = { x: pos.x, y: pos.y };
             this.state.needsUpdate = true;
+            this.state.needsCalculation = true;
             this.isDragging = false; // Router is instant placement
         } else if (this.state.tool === 'delete') {
             this.deleteObjectAt(pos);
             this.state.needsUpdate = true;
+            this.state.needsCalculation = true;
             this.isDragging = false;
         }
     }
@@ -185,6 +187,7 @@ class InputHandler {
             this.state.walls.push(this.state.previewWall);
             this.state.previewWall = null;
             this.state.needsUpdate = true;
+            this.state.needsCalculation = true;
         }
 
         this.isDragging = false;
@@ -365,6 +368,7 @@ class App {
             this.state.router = null;
             this.state.heatmap = null;
             this.state.needsUpdate = true;
+            this.state.needsCalculation = true;
         });
 
         // Settings
@@ -426,6 +430,7 @@ class App {
             }
 
             this.state.needsCalculation = false;
+            this.state.needsUpdate = true;
         }
 
         if (this.state.needsUpdate) {
