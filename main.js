@@ -6,6 +6,11 @@ class Renderer {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.gridSize = 20;
+
+        // Background Image
+        this.bgImage = new Image();
+        this.bgImage.src = 'floorplan.jpg';
+        // Trigger generic update when loaded (if within app context, but here we just rely on loop)
     }
 
     resize() {
@@ -16,8 +21,16 @@ class Renderer {
     }
 
     clear() {
-        this.ctx.fillStyle = '#1e293b'; // Matches JS background
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        if (this.bgImage.complete && this.bgImage.naturalWidth !== 0) {
+            this.ctx.drawImage(this.bgImage, 0, 0, this.canvas.width, this.canvas.height);
+
+            // Optional: Add slight dark overlay to make drawing pop
+            this.ctx.fillStyle = 'rgba(30, 41, 59, 0.4)';
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        } else {
+            this.ctx.fillStyle = '#1e293b'; // Fallback
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        }
     }
 
     drawGrid() {
