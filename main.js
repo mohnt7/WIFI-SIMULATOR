@@ -124,6 +124,27 @@ class Renderer {
         this.ctx.fillText("AP", router.x - 7, router.y - 10);
     }
 
+    drawExtenders(extenders) {
+        if (!extenders) return;
+        extenders.forEach(ext => {
+            // Draw Extender Icon (Orange)
+            this.ctx.fillStyle = '#f59e0b';
+            this.ctx.beginPath();
+            this.ctx.arc(ext.x, ext.y, 7, 0, Math.PI * 2);
+            this.ctx.fill();
+
+            this.ctx.strokeStyle = '#d97706';
+            this.ctx.lineWidth = 2;
+            this.ctx.beginPath();
+            this.ctx.arc(ext.x, ext.y, 10, 0, Math.PI * 2);
+            this.ctx.stroke();
+
+            this.ctx.fillStyle = 'white';
+            this.ctx.font = '10px Arial';
+            this.ctx.fillText("EXT", ext.x - 9, ext.y - 10);
+        });
+    }
+
     drawHeatmap(heatmapData) {
         if (!heatmapData) return;
 
@@ -193,6 +214,16 @@ class InputHandler {
             this.state.needsUpdate = true;
             this.state.needsCalculation = true;
             this.isDragging = false;
+        } else if (this.state.tool === 'extender') {
+            if (this.state.extenders.length < 3) {
+                this.state.extenders.push({ x: pos.x, y: pos.y });
+                this.state.needsUpdate = true;
+                this.state.needsCalculation = true;
+                // Update button text? handled in loop or manually
+            } else {
+                alert("الحد الأقصى هو 3 مقويات فقط");
+            }
+            this.isDragging = false;
         }
     }
 
@@ -253,6 +284,13 @@ class InputHandler {
         this.state.walls = this.state.walls.filter(wall => {
             return !this.isPointNearLine(pos, wall.start, wall.end, threshold);
         });
+
+        // Remove extenders
+        this.state.extenders = this.state.extenders.filter(ext => {
+            const dx = ext.x - pos.x;
+            const dy = ext.y - pos.y;
+            return (dx * dx + dy * dy >= 400);
+        });
     }
 
     isPointNearLine(p, a, b, threshold) {
@@ -275,7 +313,9 @@ class Simulation {
     constructor(gridSize = 20) {
         this.gridSize = gridSize;
         this.walls = [];
+        this.walls = [];
         this.router = null;
+        this.extenders = [];
         this.width = 0;
         this.height = 0;
         this.txPower = 20; // dBm
@@ -283,11 +323,12 @@ class Simulation {
         this.wallAttenuation = 12; // dB per wall
     }
 
-    updateConfig(width, height, walls, router, txPower, freq) {
+    updateConfig(width, height, walls, router, extenders, txPower, freq) {
         this.width = width;
         this.height = height;
         this.walls = walls;
         this.router = router;
+        this.extenders = extenders || [];
         this.txPower = parseFloat(txPower);
         this.frequency = parseFloat(freq);
     }
@@ -306,32 +347,50 @@ class Simulation {
                 const distPixels = Math.hypot(centerX - this.router.x, centerY - this.router.y);
                 const distMeters = distPixels * 0.05; // Assume 1px = 5cm -> 20px = 1m
 
-                let signal = this.txPower;
+                // Path Loss Calculation for Router
+                let maxSignal = -100;
 
-                // Path Loss
-                if (distMeters > 0.1) {
-                    const pathLoss = 20 * Math.log10(distMeters) + freqFactor;
-                    signal -= pathLoss;
-                }
+                // 1. Router Signal
+                let s1 = this.calculateSignalFromSource(this.router, centerX, centerY, freqFactor);
+                if (s1 > maxSignal) maxSignal = s1;
 
-                // Wall Attenuation
-                const attenuation = this.calculateWallLoss(
-                    { x: this.router.x, y: this.router.y },
-                    { x: centerX, y: centerY }
-                );
-                signal -= attenuation;
+                // 2. Extenders Signal
+                this.extenders.forEach(ext => {
+                    let sE = this.calculateSignalFromSource(ext, centerX, centerY, freqFactor);
+                    if (sE > maxSignal) maxSignal = sE;
+                });
 
-                // Cap min signal for visualization
-                if (signal < -90) signal = -90;
+                if (maxSignal < -90) maxSignal = -90;
 
                 points.push({
                     x: x,
                     y: y,
-                    signal: signal
+                    signal: maxSignal
                 });
             }
         }
         return points;
+    }
+
+    calculateSignalFromSource(source, targetX, targetY, freqFactor) {
+        const distPixels = Math.hypot(targetX - source.x, targetY - source.y);
+        const distMeters = distPixels * 0.05;
+
+        // Path Loss
+        let signal = this.txPower;
+        if (distMeters > 0.1) {
+            const pathLoss = 20 * Math.log10(distMeters) + freqFactor;
+            signal -= pathLoss;
+        }
+
+        // Check Walls
+        const attenuation = this.calculateWallLoss(
+            { x: source.x, y: source.y },
+            { x: targetX, y: targetY }
+        );
+        signal -= attenuation;
+
+        return signal;
     }
 
     calculateWallLoss(p1, p2) {
@@ -374,6 +433,7 @@ class App {
             tool: 'wall', // wall, router, delete
             walls: [], // {start: {x,y}, end: {x,y}, type: string}
             router: null, // {x, y}
+            extenders: [], // [{x,y}]
             previewWall: null,
             heatmap: null,
             needsUpdate: true,
@@ -394,11 +454,13 @@ class App {
         // Tools
         document.getElementById('btn-draw-wall').addEventListener('click', (e) => this.setTool('wall', e.target));
         document.getElementById('btn-place-router').addEventListener('click', (e) => this.setTool('router', e.target));
+        document.getElementById('btn-place-extender').addEventListener('click', (e) => this.setTool('extender', e.target));
         document.getElementById('btn-delete').addEventListener('click', (e) => this.setTool('delete', e.target));
 
         document.getElementById('btn-clear-all').addEventListener('click', () => {
             this.state.walls = [];
             this.state.router = null;
+            this.state.extenders = []; // Clear extenders
             this.state.heatmap = null;
             this.state.needsUpdate = true;
             this.state.needsCalculation = true;
@@ -431,6 +493,7 @@ class App {
         switch (tool) {
             case 'wall': status.textContent = "اضغط واسحب لرسم جدار"; break;
             case 'router': status.textContent = "اضغط لوضع الراوتر"; break;
+            case 'extender': status.textContent = "اضغط لوضع مقوي (الحد 3)"; break;
             case 'delete': status.textContent = "اضغط على عنصر لحذفه"; break;
         }
     }
@@ -452,6 +515,7 @@ class App {
                 this.canvas.height,
                 this.state.walls,
                 this.state.router,
+                this.state.extenders,
                 txPower,
                 freq
             );
@@ -479,10 +543,12 @@ class App {
 
             // Draw Walls
             this.renderer.drawWalls(this.state.walls);
+            // Draw Preview Wall
             this.renderer.drawPreviewWall(this.state.previewWall);
 
-            // Draw Router
+            // Draw Router & Extenders
             this.renderer.drawRouter(this.state.router);
+            this.renderer.drawExtenders(this.state.extenders);
 
             this.state.needsUpdate = false;
         }
